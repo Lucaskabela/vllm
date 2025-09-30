@@ -742,8 +742,8 @@ def run_llama4(questions: list[str], modality: str) -> ModelRequestData:
         model=model_name,
         max_model_len=8192,
         max_num_seqs=4,
-        tensor_parallel_size=8,
-        gpu_memory_utilization=0.4,
+        tensor_parallel_size=4,
+        gpu_memory_utilization=0.8,
         limit_mm_per_prompt={modality: 1},
     )
 
