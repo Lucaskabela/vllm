@@ -52,6 +52,7 @@ FILES = [
     "vllm/v1/sample",
     "vllm/v1/structured_output",
     "vllm/v1/worker",
+    "vllm/model_executor",
 ]
 
 # After fixing errors resulting from changing follow_imports
@@ -60,7 +61,6 @@ SEPARATE_GROUPS = [
     "tests",
     # v0 related
     "vllm/lora",
-    "vllm/model_executor",
     # v1 related
     "vllm/v1/kv_offload",
     "vllm/v1/spec_decode",

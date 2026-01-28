@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 import functools
 from copy import copy
+from typing import NoReturn
 
 import torch
 
@@ -16,12 +17,11 @@ from vllm.v1.attention.backend import (
     subclass_attention_backend,
 )
 from vllm.v1.attention.selector import get_attn_backend
-from vllm.v1.kv_cache_interface import KVCacheSpec
 
 
 @functools.lru_cache
 def create_encoder_only_attention_backend(
-    underlying_attn_backend: AttentionBackend,
+    underlying_attn_backend: type[AttentionBackend],
 ) -> type[AttentionBackend]:
     prefix = "EncoderOnlyAttention_"
     underlying_builder = underlying_attn_backend.get_builder_cls()
@@ -96,6 +96,7 @@ class EncoderOnlyAttention(Attention):
             **kwargs,
         )
 
-    def get_kv_cache_spec(self, vllm_config: VllmConfig) -> KVCacheSpec:
-        # Does not need KV cache
-        return None
+    def get_kv_cache_spec(self, vllm_config: VllmConfig) -> NoReturn:
+        # Does not need KV cache - this method should never be called
+        # for encoder-only attention
+        raise NotImplementedError("EncoderOnlyAttention does not use KV cache")

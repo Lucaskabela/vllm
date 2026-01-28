@@ -400,7 +400,7 @@ class MLAAttention(nn.Module, AttentionLayerBase):
 
         if self.use_direct_call:
             forward_context: ForwardContext = get_forward_context()
-            attn_metadata = forward_context.attn_metadata
+            attn_metadata: dict | object | None = forward_context.attn_metadata
             if isinstance(attn_metadata, dict):
                 attn_metadata = attn_metadata[self.layer_name]
             self_kv_cache = self.kv_cache[forward_context.virtual_engine]
@@ -1435,7 +1435,7 @@ class MLACommonMetadataBuilder(AttentionMetadataBuilder[M]):
             assert isinstance(attn_metadata.prefill, FlashInferPrefillMetadata)
             self._build_fi_prefill_wrappers(attn_metadata.prefill)
 
-        return attn_metadata
+        return attn_metadata  # type: ignore[return-value]
 
 
 def reorg_kvcache(

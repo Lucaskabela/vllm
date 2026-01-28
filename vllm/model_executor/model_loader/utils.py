@@ -61,7 +61,9 @@ def initialize_model(
         model_class,
     )
     # try to be compatible with old-style model class
-    kwargs = {}
+    from typing import Any
+
+    kwargs: dict[str, Any] = {}
     if "prefix" in all_params:
         kwargs["prefix"] = prefix
     if "config" in all_params:
@@ -193,6 +195,12 @@ def _get_model_architecture(model_config: ModelConfig) -> tuple[type[nn.Module],
     elif convert_type == "classify":
         logger.debug_once("Converting to sequence classification model.")
         model_cls = as_seq_cls_model(model_cls)
+    elif convert_type == "reward":
+        # Reward model conversion is handled elsewhere in the model loading
+        pass
+    elif convert_type == "mm_encoder_only":
+        # MM encoder only conversion is handled elsewhere in the model loading
+        pass
     else:
         assert_never(convert_type)
 

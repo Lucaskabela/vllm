@@ -156,6 +156,7 @@ class _ColumnvLLMParameter(BasevLLMParameter):
     def load_merged_column_weight(self, loaded_weight: torch.Tensor, **kwargs):
         shard_offset = kwargs.get("shard_offset")
         shard_size = kwargs.get("shard_size")
+        assert shard_offset is not None and shard_size is not None
 
         # TODO: move these to PackedColumnParameter and PackedvLLMParameter
         if (
@@ -180,6 +181,8 @@ class _ColumnvLLMParameter(BasevLLMParameter):
         shard_size = kwargs.get("shard_size")
         shard_id = kwargs.get("shard_id")
         num_heads = kwargs.get("num_heads")
+        assert shard_offset is not None and shard_size is not None
+        assert num_heads is not None
 
         # TODO: move these to PackedColumnParameter and PackedvLLMParameter
         if (

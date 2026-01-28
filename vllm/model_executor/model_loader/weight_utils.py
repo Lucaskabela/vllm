@@ -46,7 +46,7 @@ except ImportError:
 try:
     import gguf
 except ImportError:
-    gguf = PlaceholderModule("gguf")
+    gguf = PlaceholderModule("gguf")  # type: ignore[assignment]
 
 try:
     from fastsafetensors import SafeTensorsFileLoader, SingleGroup
@@ -230,6 +230,7 @@ def convert_bin_to_safetensor_file(
 def get_quant_config(
     model_config: ModelConfig, load_config: LoadConfig
 ) -> QuantizationConfig:
+    assert model_config.quantization is not None
     quant_cls = get_quantization_config(model_config.quantization)
 
     # GGUF doesn't have config file
@@ -269,26 +270,29 @@ def get_quant_config(
     # if hf_quant_config is None, we will try to get config from
     # hf_overrides
     hf_overrides = model_config.hf_overrides
-    quantization_config_file = hf_overrides.get("quantization_config_file", None)
-    if quantization_config_file is not None:
-        if hasattr(quant_cls, "from_config_file"):
-            return quant_cls.from_config_file(quantization_config_file)
-        else:
-            raise NotImplementedError(
-                "from_config_file is specified in hf_override config, "
-                "but quant_cls.from_config_file is not implemented in "
-                f"{quant_cls}"
-            )
-    quantization_config_json = hf_overrides.get("quantization_config_dict_json", None)
-    if quantization_config_json is not None:
-        if hasattr(quant_cls, "from_config_dict_json"):
-            return quant_cls.from_config_dict_json(quantization_config_json)
-        else:
-            raise NotImplementedError(
-                "from_config_dict_json is specified in hf_override config, "
-                "but quant_cls.from_config_dict_json is not implemented in "
-                f"{quant_cls}"
-            )
+    if isinstance(hf_overrides, dict):
+        quantization_config_file = hf_overrides.get("quantization_config_file", None)
+        if quantization_config_file is not None:
+            if hasattr(quant_cls, "from_config_file"):
+                return quant_cls.from_config_file(quantization_config_file)
+            else:
+                raise NotImplementedError(
+                    "from_config_file is specified in hf_override config, "
+                    "but quant_cls.from_config_file is not implemented in "
+                    f"{quant_cls}"
+                )
+        quantization_config_json = hf_overrides.get(
+            "quantization_config_dict_json", None
+        )
+        if quantization_config_json is not None:
+            if hasattr(quant_cls, "from_config_dict_json"):
+                return quant_cls.from_config_dict_json(quantization_config_json)
+            else:
+                raise NotImplementedError(
+                    "from_config_dict_json is specified in hf_override config, "
+                    "but quant_cls.from_config_dict_json is not implemented in "
+                    f"{quant_cls}"
+                )
 
     # Inflight BNB quantization
     if model_config.quantization == "bitsandbytes":
@@ -463,8 +467,12 @@ def download_weights_from_hf(
         # Attempt to reduce allow_patterns to a single pattern
         # so we only have to call snapshot_download once.
         try:
+            from typing import cast
+
             fs = HfFileSystem()
-            file_list = fs.ls(model_name_or_path, detail=False, revision=revision)
+            file_list = cast(
+                list[str], fs.ls(model_name_or_path, detail=False, revision=revision)
+            )
 
             # If downloading safetensors and an index file exists, use the
             # specific file names from the index to avoid downloading
@@ -488,6 +496,7 @@ def download_weights_from_hf(
             else:
                 # Use the first pattern found in the HF repo's files.
                 for pattern in allow_patterns:
+                    assert isinstance(pattern, str)
                     if fnmatch.filter(file_list, pattern):
                         allow_patterns = [pattern]
                         break

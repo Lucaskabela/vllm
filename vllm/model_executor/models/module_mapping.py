@@ -5,6 +5,7 @@
 #  https://github.com/modelscope/ms-swift/blob/v2.4.2/swift/utils/module_mapping.py
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -17,13 +18,13 @@ class MultiModelKeys:
 
     @staticmethod
     def from_string_field(
-        language_model: str | list[str] = None,
-        connector: str | list[str] = None,
-        tower_model: str | list[str] = None,
-        generator: str | list[str] = None,
-        **kwargs,
+        language_model: str | list[str] | None = None,
+        connector: str | list[str] | None = None,
+        tower_model: str | list[str] | None = None,
+        generator: str | list[str] | None = None,
+        **kwargs: Any,
     ) -> "MultiModelKeys":
-        def to_list(value):
+        def to_list(value: str | list[str] | None) -> list[str]:
             if value is None:
                 return []
             return [value] if isinstance(value, str) else list(value)
