@@ -209,14 +209,13 @@ class Attention(nn.Module, AttentionLayerBase):
         `self.kv_cache`.
         """
         super().__init__()
+        sliding_window: int | None = None
         if per_layer_sliding_window is not None:
             # per-layer sliding window
             sliding_window = per_layer_sliding_window
         elif cache_config is not None:
             # model-level sliding window
             sliding_window = cache_config.sliding_window
-        else:
-            sliding_window = None
 
         vllm_config = get_current_vllm_config()
         if cache_config is not None:
@@ -361,10 +360,10 @@ class Attention(nn.Module, AttentionLayerBase):
             is_per_head = (
                 hasattr(self, "q_scale") and self.q_scale.numel() == self.num_kv_heads
             )
-            block_size = self.head_size * self.num_heads // self.num_kv_heads
+            quant_block_size = self.head_size * self.num_heads // self.num_kv_heads
             self.query_quant = QuantFP8(
                 static=True,
-                group_shape=GroupShape(-1, block_size)
+                group_shape=GroupShape(-1, quant_block_size)
                 if is_per_head
                 else GroupShape.PER_TENSOR,
             )
@@ -582,7 +581,8 @@ def get_attention_context(
         extracted from the forward context.
     """
     forward_context: ForwardContext = get_forward_context()
-    attn_metadata = forward_context.attn_metadata
+    # TODO: Fix the type hint for this function.  It does not follow/make much sense
+    attn_metadata: dict | object | None = forward_context.attn_metadata
     if isinstance(attn_metadata, dict):
         attn_metadata = attn_metadata[layer_name]
     attn_layer = forward_context.no_compile_layers[layer_name]

@@ -59,7 +59,7 @@ def poly_norm(
     from vllm import _custom_ops as ops
 
     out = torch.empty_like(x)
-    ops.poly_norm(
+    ops.poly_norm(  # type: ignore[attr-defined]
         out,
         x,
         weight,

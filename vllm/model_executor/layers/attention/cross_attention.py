@@ -68,7 +68,7 @@ def _get_cross_slot_mapping(
 
 @functools.lru_cache
 def create_cross_attention_backend(
-    underlying_attn_backend: AttentionBackend,
+    underlying_attn_backend: type[AttentionBackend],
 ) -> type[AttentionBackend]:
     prefix = "CrossAttention_"
     underlying_builder = underlying_attn_backend.get_builder_cls()
@@ -83,6 +83,7 @@ def create_cross_attention_backend(
         ) -> AttentionMetadata:
             new_metadata = copy(common_attn_metadata)
             new_metadata.causal = False
+            assert new_metadata.encoder_seq_lens_cpu is not None
             max_encoder_len = int(new_metadata.encoder_seq_lens_cpu.max())
             new_metadata.max_seq_len = max_encoder_len
             # Any computed tokens indicated decode step>1 (no chunked prefill)
@@ -107,6 +108,7 @@ def create_cross_attention_backend(
             )
 
             # NOTE (NickLucche) use `new_metadata` instead of `common_*` (initial) here
+            assert new_metadata.encoder_seq_lens_cpu is not None
             slot_mapping = _get_cross_slot_mapping(
                 new_metadata.encoder_seq_lens_cpu,
                 new_metadata.block_table_tensor,
@@ -114,7 +116,7 @@ def create_cross_attention_backend(
                 self.device,
             )
             attn_metadata = super().build(common_prefix_len, new_metadata, fast_build)
-            attn_metadata.slot_mapping = slot_mapping
+            attn_metadata.slot_mapping = slot_mapping  # type: ignore[attr-defined]
             return attn_metadata
 
     # NOTE(Lucas): we need a custom impl so we can use the slot-mapping computed by
@@ -138,7 +140,11 @@ def create_cross_attention_backend(
                 and attn_metadata is not None
             ):
                 self.do_kv_cache_update(
-                    layer, key, value, kv_cache, attn_metadata.slot_mapping
+                    layer,
+                    key,
+                    value,
+                    kv_cache,
+                    attn_metadata.slot_mapping,  # type: ignore[attr-defined]
                 )
 
             return super().forward(

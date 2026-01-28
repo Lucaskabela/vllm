@@ -3,12 +3,14 @@
 import inspect
 from collections.abc import Callable
 from functools import wraps
+from typing import cast
 
 from vllm.distributed.kv_transfer import (
     get_kv_transfer_group,
     has_kv_transfer_group,
     is_v1_kv_transfer_group,
 )
+from vllm.v1.attention.backend import AttentionMetadata
 
 
 def maybe_transfer_kv_layer(func: Callable) -> Callable:
@@ -53,7 +55,9 @@ def maybe_transfer_kv_layer(func: Callable) -> Callable:
         result = func(*args, **kwargs)
 
         # Save KV cache layer on exit
-        connector.save_kv_layer(layer_name, kv_cache, attn_metadata)
+        connector.save_kv_layer(
+            layer_name, kv_cache, cast(AttentionMetadata, attn_metadata)
+        )
 
         return result
 
