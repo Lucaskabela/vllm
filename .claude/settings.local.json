@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(source ~/.bashrc)",
+      "Bash(conda activate:*)",
+      "Bash(mypy:*)",
+      "Bash(python examples/offline_inference/vision_language.py:*)",
+      "Bash(python3:*)",
+      "Bash(source:*)",
+      "Bash(~/.conda/envs/vllm/bin/python:*)"
+    ]
+  }
+}
