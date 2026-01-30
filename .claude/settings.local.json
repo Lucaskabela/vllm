@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(source ~/.bashrc)",
+      "Bash(conda activate:*)",
+      "Bash(mypy:*)"
+    ]
+  }
+}
