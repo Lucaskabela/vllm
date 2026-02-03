@@ -1,0 +1,8 @@
+{
+  "skills": {
+    "apply-mm-torch-compile": {
+      "description": "Interactive walkthrough for compiling multimodal encoders in vLLM",
+      "path": ".claude/skills/apply-mm-torch-compile/SKILL.md"
+    }
+  }
+}
