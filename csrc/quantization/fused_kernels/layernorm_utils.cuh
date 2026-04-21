@@ -13,6 +13,14 @@
 
 namespace vllm {
 
+// Round scale up to the nearest power of two so it fits the UE8M0 format
+// (exponent-only scale). fmaxf with MIN_SCALE_FOR_LOG guards log2f against
+// non-positive inputs.
+__device__ inline float adjust_scale_for_ue8m0(float scale) {
+  constexpr float MIN_SCALE_FOR_LOG = 1e-10f;
+  return exp2f(ceilf(log2f(fmaxf(scale, MIN_SCALE_FOR_LOG))));
+}
+
 // has_residual must be true, if residual is not a nullptr
 template <typename scalar_t, bool has_residual = false>
 __device__ void compute_rms(float* rms, scalar_t const* __restrict__ input,
@@ -71,7 +79,7 @@ __device__ float warpReduceMaxSpecialized(volatile float* val, int64_t tid,
 }
 
 template <typename scalar_t, typename scalar_out_t, bool has_residual = false,
-          bool is_scale_transposed = false>
+          bool is_scale_transposed = false, bool scale_ue8m0 = false>
 __device__ void compute_dynamic_per_token_scales(
     float* __restrict__ token_scale, float* __restrict__ all_token_scales,
     scalar_t const* __restrict__ input, scalar_t const* __restrict__ weight,
@@ -139,6 +147,9 @@ __device__ void compute_dynamic_per_token_scales(
       }
       // token scale computation
       scale = max(scale / qmax, min_scaling_factor<scalar_out_t>::val());
+      if constexpr (scale_ue8m0) {
+        scale = adjust_scale_for_ue8m0(scale);
+      }
       // Global output store
       if constexpr (is_scale_transposed) {
         int64_t const scale_rows = (gridDim.x + outer_scale_stride - 1) /
@@ -295,7 +306,8 @@ __device__ void compute_rms(float* rms, scalar_t const* __restrict__ input,
 // Vectorized version of vllm::compute_dynamic_per_token_scales
 // hidden_size must be a multiple of 4
 template <typename scalar_t, typename scalar_out_t, bool has_residual = false,
-          bool is_scale_transposed = false, int32_t group_size = 0>
+          bool is_scale_transposed = false, int32_t group_size = 0,
+          bool scale_ue8m0 = false>
 __device__ void compute_dynamic_per_token_scales(
     float* __restrict__ token_scale, float* __restrict__ all_token_scales,
     scalar_t const* __restrict__ input, scalar_t const* __restrict__ weight,
@@ -399,6 +411,9 @@ __device__ void compute_dynamic_per_token_scales(
       }
       // token scale computation
       scale = max(scale / qmax, min_scaling_factor<scalar_out_t>::val());
+      if constexpr (scale_ue8m0) {
+        scale = adjust_scale_for_ue8m0(scale);
+      }
       // Global output store
       if constexpr (is_scale_transposed) {
         int64_t const scale_rows = (gridDim.x + outer_scale_stride - 1) /

@@ -361,6 +361,7 @@ class FusedAddRMSNormGroupQuantPattern(RMSNormQuantPattern):
                 residual=residual,
                 group_size=self.group_shape[1],
                 is_scale_transposed=self.has_col_major_scales,
+                scale_ue8m0=self.is_e8m0,
             )
 
             # result, residual, scale
@@ -395,6 +396,7 @@ class RMSNormGroupQuantPattern(RMSNormQuantPattern):
             quant=QuantKey(dtype=quant_dtype, scale=scale, symmetric=symmetric),
         )
         self.group_shape = group_shape
+        self.is_e8m0 = is_e8m0
         self.has_col_major_scales = has_col_major_scales
         self.is_tma_aligned = is_tma_aligned
         super().__init__(
@@ -455,6 +457,7 @@ class RMSNormGroupQuantPattern(RMSNormQuantPattern):
                 residual=None,
                 group_size=self.group_shape[1],
                 is_scale_transposed=self.has_col_major_scales,
+                scale_ue8m0=self.is_e8m0,
             )
 
             # result, scale

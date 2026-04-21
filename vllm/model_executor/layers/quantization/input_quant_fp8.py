@@ -6,6 +6,7 @@ import torch.nn.functional as F
 
 from vllm import _custom_ops as ops
 from vllm._aiter_ops import rocm_aiter_ops
+from vllm.config import get_current_vllm_config
 from vllm.model_executor.custom_op import CustomOp
 from vllm.model_executor.layers.quantization.utils.quant_utils import (
     GroupShape,
@@ -67,6 +68,18 @@ class QuantFP8(CustomOp):
         self.use_ue8m0 = is_deep_gemm_e8m0_used() if use_ue8m0 is None else use_ue8m0
         self.use_deep_gemm_supported = is_deep_gemm_supported()
 
+        # TODO(quant-rms-fusion): when rms_norm_per_block_quant learns to emit
+        # packed UE8M0 scales (int32, TMA-aligned), drop this flag and let
+        # the packed path stay enabled alongside fusion. Today the fusion pass
+        # only matches per_token_group_fp8_quant (fp32 scales), so if fusion is
+        # enabled we avoid the packed op to let fusion rewrite the rms+quant.
+        vllm_config = get_current_vllm_config()
+        self._skip_packed_for_fusion = bool(
+            vllm_config is not None
+            and vllm_config.compilation_config is not None
+            and vllm_config.compilation_config.pass_config.fuse_norm_quant
+        )
+
         self.use_aiter = rocm_aiter_ops.is_linear_fp8_enabled()
 
         self.is_group_quant = group_shape.is_per_group()
@@ -94,6 +107,7 @@ class QuantFP8(CustomOp):
             and self.use_ue8m0
             and self.use_deep_gemm_supported
             and (DeepGemmQuantScaleFMT.from_oracle() == DeepGemmQuantScaleFMT.UE8M0)
+            and not self._skip_packed_for_fusion
         ):
             return fp8_utils.per_token_group_quant_fp8_packed_for_deepgemm(
                 x,
