@@ -463,6 +463,13 @@ class HfRunner:
                 and len({p.device for p in model.parameters()}) < 2
             ):
                 model = model.to(device=self.device)
+                # accelerate hooks can prevent .to() from moving
+                # non-persistent buffers (e.g. inv_freq in RoPE),
+                # causing Triton dispatch errors in newer PyTorch.
+                target = torch.device(self.device)
+                for _, buf in model.named_buffers():
+                    if buf.device != target:
+                        buf.data = buf.data.to(target)
 
             self.model = model
 
