@@ -634,3 +634,133 @@ def _patch_fxgraphcache_pickle_if_needed():
 
 
 _patch_fxgraphcache_pickle_if_needed()
+
+# ===================================================
+# Pickle fixes for exec'd triton launcher functions
+# ===================================================
+# Triton generates launcher functions via exec(). These have __module__=None
+# and can't be resolved by standard pickle. Two pickle paths need patching:
+# 1. AOTAutogradCache._pickle_entry (fatal in 2.12+ due to strict_autograd_cache)
+# 2. AOTCompilePickler used by save_compiled_function (AOT artifact save)
+# Fix: replace unresolvable functions with None during serialization.
+
+import types
+
+
+def _is_unpicklable_function(obj: object) -> bool:
+    """True for exec'd functions that pickle can't resolve (e.g. triton launchers).
+    Narrow check: only matches __module__=None to avoid false positives on
+    closures and nested functions which have valid pickle paths."""
+    return isinstance(obj, types.FunctionType) and obj.__module__ is None
+
+
+def _patch_autograd_cache_pickle_for_triton():
+    import io
+    import json
+    import logging
+    import pickle as pickle_mod
+
+    import torch._logging
+
+    try:
+        from torch._functorch._aot_autograd.autograd_cache import AOTAutogradCache
+        from torch._inductor.runtime.triton_heuristics import CachingAutotuner
+    except ImportError:
+        return
+
+    if getattr(AOTAutogradCache, "_vllm_pickle_patched", False):
+        return
+
+    class _SafeTritonPickler(pickle_mod.Pickler):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._prepared: list[tuple[CachingAutotuner, tuple]] = []
+
+        def reducer_override(self, obj):
+            if isinstance(obj, CachingAutotuner) and getattr(obj, "launchers", None):
+                self._prepared.append((obj, obj.prepare_for_pickle()))
+            elif _is_unpicklable_function(obj):
+                return (type(None), ())
+            return NotImplemented
+
+        def restore_all(self):
+            for obj, old_values in self._prepared:
+                obj.restore_after_unpickle(old_values)
+            self._prepared.clear()
+
+    def _patched_pickle_entry(entry, remote):
+        pickler = None
+        try:
+            buf = io.BytesIO()
+            pickler = _SafeTritonPickler(buf, protocol=pickle_mod.HIGHEST_PROTOCOL)
+            pickler.dump(entry)
+            return buf.getvalue()
+        except Exception as e:
+            find_bad = getattr(AOTAutogradCache, "_find_unpicklable_field", None)
+            bad_field = find_bad(entry) if find_bad else None
+            error_str = str(e)
+            log = logging.getLogger("torch._functorch._aot_autograd.autograd_cache")
+            log.warning(
+                "AOTAutograd cache unable to serialize compiled graph: %s",
+                e,
+            )
+            torch._logging.trace_structured(
+                "artifact",
+                metadata_fn=lambda: {
+                    "name": "aotautograd_cache_pickle_failure",
+                    "encoding": "json",
+                },
+                payload_fn=lambda: json.dumps({"error": error_str, "field": bad_field}),
+            )
+            if remote:
+                from torch._functorch._aot_autograd.autograd_cache import (
+                    log_cache_bypass,
+                )
+
+                log_cache_bypass(
+                    "bypass_aot_autograd",
+                    "Unable to serialize: " + str(e),
+                )
+            from torch._functorch import config
+
+            if config.strict_autograd_cache:
+                raise
+            return None
+        finally:
+            if pickler is not None:
+                pickler.restore_all()
+
+    _patched_pickle_entry._vllm_patched = True  # type: ignore[attr-defined]
+    AOTAutogradCache._pickle_entry = staticmethod(  # type: ignore[assignment]
+        _patched_pickle_entry
+    )
+    AOTAutogradCache._vllm_pickle_patched = True  # type: ignore[attr-defined]
+
+
+_patch_autograd_cache_pickle_for_triton()
+
+
+def _patch_aot_compile_pickler_for_triton():
+    try:
+        from torch._dynamo.aot_compile import AOTCompilePickler
+    except ImportError:
+        return
+
+    if getattr(AOTCompilePickler, "_vllm_patched", False):
+        return
+
+    original_reducer = AOTCompilePickler.reducer_override
+
+    def _patched_reducer_override(self, obj):  # type: ignore[no-untyped-def]
+        result = original_reducer(self, obj)
+        if result is not NotImplemented:
+            return result
+        if _is_unpicklable_function(obj):
+            return (type(None), ())
+        return NotImplemented
+
+    AOTCompilePickler.reducer_override = _patched_reducer_override
+    AOTCompilePickler._vllm_patched = True  # type: ignore[attr-defined]
+
+
+_patch_aot_compile_pickler_for_triton()

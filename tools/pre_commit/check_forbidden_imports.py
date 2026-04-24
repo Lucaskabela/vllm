@@ -45,6 +45,7 @@ CHECK_IMPORTS = {
             "tests/tokenizers_/test_hf.py",
             "tests/utils_/test_hashing.py",
             "tests/compile/test_aot_compile.py",
+            "tests/test_fxgraphcache_pickle_patch.py",
             "benchmarks/kernels/graph_machete_bench.py",
             "benchmarks/kernels/benchmark_lora.py",
             "benchmarks/kernels/benchmark_machete.py",
