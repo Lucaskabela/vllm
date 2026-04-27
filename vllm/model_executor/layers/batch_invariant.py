@@ -940,11 +940,7 @@ def enable_batch_invariant_mode():
     else:
         # Hopper (SM90) and Blackwell (SM100): the only source of batch
         # variance is split-k, which we disable via the cuBLAS workspace
-        # config. The previous SM100 override that routed mm/addmm/matmul/
-        # linear through the triton persistent kernel was a workaround for a
-        # torch 2.9 cuBLAS GEMV-at-bs=1 path (pytorch/pytorch#166735); torch
-        # 2.12 makes cuBLASLt batch-invariant on B200 directly, so B200 now
-        # uses the same path as H100.
+        # config.
         _original_cublas_workspace_cfg = os.environ.get("CUBLAS_WORKSPACE_CONFIG", None)
         _original_cublaslt_workspace_size = os.environ.get(
             "CUBLASLT_WORKSPACE_SIZE", None
