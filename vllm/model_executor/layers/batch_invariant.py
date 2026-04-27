@@ -954,7 +954,8 @@ def enable_batch_invariant_mode():
 
     # Triton bmm/persistent-matmul kernels read this for the FP16 N-tile size;
     # set unconditionally because bmm is overridden on all CUDA platforms.
-    _fp16_block_size_n = 256 if get_max_shared_memory_bytes() > 106496 else 128
+    if current_platform.is_cuda():
+        _fp16_block_size_n = 256 if get_max_shared_memory_bytes() > 106496 else 128
 
     _batch_invariant_LIB.impl(
         "aten::_log_softmax", _log_softmax_batch_invariant, "CUDA"
